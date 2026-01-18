@@ -7,103 +7,73 @@ use Illuminate\Http\Request;
 // debugging function -> Log
 use Illuminate\Support\Facades\Log;
 
-// models
-use App\Models\Order;
-use App\Models\OrderedProduct;
-use App\Models\GuestUser;
-
 // request
 use App\Http\Requests\StoreGuestUserRequest;
 use App\Http\Requests\UpdateAlterGuestUserRequest;
 
+// services
+use App\Services\CreateGuestUserService;
+use App\Services\FetchGuestUserService;
+use App\Services\UpdateAlterGuestUserService;
+
 class GuestUserController extends Controller
 {
+
+    /**
+     * 
+     * helper function
+     * proccesses guest user services result
+     * 
+     * @param array $result
+     * @return array
+     */
+    private function processResult(array $result): array
+    {
+        $response = [
+            'success' => $result['success'],
+            'message' => $result['message'],
+        ];
+
+        // Add 'data' key only if it exists in $result
+        if (isset($result['data'])) {
+            $response['data'] = $result['data'];
+        }
+
+        return $response;
+    }
+
     /**
      * for creating guest user
      * 
      * @param \App\Http\Requests\StoreGuestUserRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(StoreGuestUserRequest $request)
+    public function store(
+        StoreGuestUserRequest $request,
+        CreateGuestUserService $service    
+    )
     {
-        try
-        {
-            $validated = $request->validated();
+        $result = $service->process($request->validated());
+        $response = $this->processResult($result);
 
-            $guestUser = GuestUser::where('id', $validated['id'])->first();
-
-            if ($guestUser) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Device already registered.'
-                ], 409); // 409 Conflict
-            }
-
-            // Register new device
-            $guestUser = GuestUser::create([
-                'id' => $validated['id'],
-                'device_info' => $validated['device_info'],
-                'last_seen_at' => $validated['last_seen_at'],
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Device registered successfully.',
-                'data' => $guestUser
-            ], 201); // 201 Created
-        }
-        catch (\Exception $e)
-        {
-            \Log::error("An error occurs $e");
-            return response()->json([
-                'success' => false,
-                'message' => 'Error while registering device'
-            ], 500);
-        }
+        return response()->json($response, $result['errorCode']);
     }
 
     /**
      * fetching user data using guest user id
      * 
-     * @param \Illuminate\Http\Request; $request
+     * @param \Illuminate\Http\Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function fetch(Request $request)
+    public function fetch(
+        Request $request,
+        FetchGuestUserService $service
+    )
     {
+        $result = $service->process($request);
+        $response = $this->processResult($result);
 
-        try
-        {
-            $query = GuestUser::query();
-
-            if ($request->has('id')) {
-                $query->where('id', $request->input('id'));
-            }
-
-            $guest = $query->orderBy('created_at', 'desc')
-                ->get()
-                ->map(function ($data) {
-                    return [
-                        'guestId' => $data->id,
-                        'name' => $data->customer_name,
-                        'email' => $data->customer_email,
-                        'phone' => $data->customer_phone,
-                        'address' => $data->customer_address
-                    ];
-                });
-
-            return response()->json([
-                'success' => true,
-                'guest' => $guest
-            ], 200);
-        }
-        catch (\Exception $e)
-        {
-            \Log::error("An error occurs $e");
-            return response()->json([
-                'success' => false,
-                'message' => 'Error while fetching data'
-            ], 500);
-        }
+        return response()->json($response, $result['errorCode']);
     }
 
     /**
@@ -112,39 +82,14 @@ class GuestUserController extends Controller
      * @param \App\Http\Requests\UpdateAlterGuestUserRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function updateAlter(UpdateAlterGuestUserRequest $request)
+    public function updateAlter(
+        UpdateAlterGuestUserRequest $request,
+        UpdateAlterGuestUserService $service
+    )
     {
-        try
-        {
-            $validated = $request->validated();
+        $result = $service->process($request->validated());
+        $response = $this->processResult($result);
 
-            $guestUser = GuestUser::find($validated['id']);
-            if (!$guestUser) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Guest user not found.'
-                ], 404);
-            }
-
-            $guestUser->customer_name = $validated['name'];
-            $guestUser->customer_email = $validated['email'];
-            $guestUser->customer_phone = $validated['phone'];
-            $guestUser->customer_address = $validated['address'];
-            $guestUser->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Guest user updated successfully.',
-                'data' => $guestUser
-            ], 200);
-        }
-        catch (\Exception $e)
-        {
-            \Log::error("An error occurs $e");
-            return response()->json([
-                'success' => false,
-                'message' => 'Error while altering or updating data'
-            ], 500);
-        }
+        return response()->json($response, $result['errorCode']);
     }
 }

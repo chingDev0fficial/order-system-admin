@@ -12,81 +12,38 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use App\Models\OrderedProduct;
 
-// job
-use App\Jobs\ProcessOrderCreation;
-
 // debugging function -> Log
 use Illuminate\Support\Facades\Log;
 
+// services
+use App\Services\Order\CreateOrderService;
+use App\Services\Order\RenderOrderPageService;
+
 class OrderController extends Controller
 {
-    public function create($page)
+    public function create($page, RenderOrderPageService $service)
     {
-        try
-        {
-            // Fetch products and pass to Inertia
-            $orders = Order::select('id', 'guest_user_id', 'total_price', 'status')
-                ->with('guestUser:id,customer_name')
-                ->where('status', $page)
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->map(function ($order) {
-                    return [
-                        'orderId' => $order->id,
-                        'customer' => $order->guestUser->customer_name,
-                        'totalPrice' => $order->total_price,
-                        'status' => $order->status,
-                    ];
-                });
-
-            return Inertia::render("order-pages/{$page}-orders", [
-                'orders' => $orders
-            ]);
-        }  
-        catch (\Exception $e)
-        {
-            \Log::info("An error occurs: $e");
-            return Inertia::render("order-pages/{$page}-orders", ['orders' => []]);
-        }
+        return Inertia::render("order-pages/{$page}-orders", [
+            'orders' => $service->process()
+        ]);
     }
 
     /**
      * Store a newly created order in the database.
      * 
      * @param \App\Http\Requests\StoreOrderRequest $request
+     * @param \App\Services\Order\CreateOrderService $service
      * @return \Illuminate\Http\RedirectResponse
      * 
      */
-    public function order(StoreOrderRequest $request)
+    public function order(
+        StoreOrderRequest $request,
+        CreateOrderService $service
+    )
     {
-        try
-        {
-            $validated = $request->validated();
-
-            $order = Order::create([
-                'guest_user_id' => $validated['guestUserId'],
-                'total_price' => $validated['totalPrice'],
-            ]);
-
-            // Loop through multiple products
-            foreach ($validated['products'] as $product) {
-                OrderedProduct::create([
-                    'order_id' => $order->id,
-                    'product_id' => $product['productId'],
-                    'quantity' => $product['quantity'],
-                ]);
-            }
-
-            ProcessOrderCreation::dispatch($order);
-        }
-        catch (\Illuminate\Validation\ValidationException $e)
-        {
-            throw $e;
-        }
-        catch (\Exception $e)
-        {
-            \Log::info("An error occurs $e");
-            return redirect()->back()->with('error', 'Error while submitting product');
-        }
+        $service->process($request->validated());
+        return redirect()
+                ->back()
+                ->with('success', 'Order created successfully!');
     }
 }

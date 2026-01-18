@@ -98,13 +98,6 @@ interface StickyHeadTableProps {
     rows: TableAttribProps[];
 }
 
-interface TableRowModalProps {
-    open: boolean;
-    handleClose: () => void;
-    style?: SxProps<Theme>;
-    data: string;
-}
-
 interface AddProductModalProps {
     open: boolean;
     handleClose: () => void;
@@ -120,16 +113,6 @@ interface EditProductModalProps {
 
 interface ProductsPageProps {
     products?: TableAttribProps[];
-}
-
-interface ProductAttribProps {
-    productId: string;
-    name: string;
-    category: string;
-    price: number;
-    status: string;
-    createdAt: string;
-    updatedAt: string;
 }
 
 function AddProductModal({ open, handleClose, style }: AddProductModalProps) {
